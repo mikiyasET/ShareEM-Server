@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model user {
+  id               String    @id @default(uuid())
+  fName            String
+  lName            String?
+  username         String    @unique
+  email            String    @unique
+  password         String    @db.Text
+  birthYear        Int
+  gender           GENDER    @default(none)
+  image            String?
+  feeling          FEELING   @default(none)
+  status           STATUS    @default(inactive)
+  isEmailConfirmed Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  vent             vent[]
+  comment          comment[]
+  react            react[]
+}
+
+model forgotPassword {
+  id        String               @id @default(uuid())
+  email     String               @unique
+  token     String               @db.Text
+  status    FORGOTPASSWORDSTATUS @default(unsolved)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model vent {
+  id        String    @id @default(uuid())
+  userId    String
+  user      user      @relation(fields: [userId], references: [id])
+  content   String    @db.Text
+  feeling   FEELING   @default(none)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  comment   comment[]
+  react     react[]
+}
+
+model comment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  ventId    String
+  vent      vent     @relation(fields: [ventId], references: [id])
+  content   String   @db.Text
+  replyTo   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model react {
+  id        String   @id @default(uuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  ventId    String
+  vent      vent     @relation(fields: [ventId], references: [id])
+  type      LIKETYPE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum GENDER {
+  male
+  female
+  none
+}
+
+enum FEELING {
+  happy
+  sad
+  angry
+  none
+}
+
+enum STATUS {
+  suspended
+  deactivated
+  active
+  inactive
+}
+
+enum FORGOTPASSWORDSTATUS {
+  solved
+  unsolved
+}
+
+enum LIKETYPE {
+  smile
+  smirk
+  heart_eyes
+  kissing_heart
+  flushed
+  unamused
+  pensive
+  cry
+  sob
+  joy
+  scream
+  rage
+  smiling_imp
+  neutral_face
+  heart
+  broken_heart
+  cupid
+  star
+  boom
+  sweat_drops
+  thumbsup
+  punch
+  fist
+  v
+  pray
+  raised_hands
+  clap
+  metal
+  muscle
+  fu
+  see_no_evil
+  hear_no_evil
+  speak_no_evil
+  kiss
+  skull
+  eyes
+  rose
+  pill
+  hundred
+  trophy
+  bomb
+  shit
+  fire
+}
