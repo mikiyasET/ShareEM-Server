@@ -41,17 +41,20 @@ authRoute.post('/login', (req, res) => {
                         if (await comparePassword(password, user.password)) {
                             const accessToken = generateAccessToken(user.id);
                             const refreshToken = generateRefreshToken(user.id);
-                            const newUser = {
+                            const newUser: USERDATA = {
                                 id: user.id,
                                 fName: user.fName,
                                 lName: user.lName,
                                 username: user.username,
                                 email: user.email,
                                 birthYear: user.birthYear,
-                                gender: user.birthYear,
+                                gender: user.gender,
                                 image: user.image,
                                 feeling: user.feeling,
                                 status: user.status,
+                                isEmailConfirmed: user.isEmailConfirmed,
+                                createdAt: user.createdAt,
+                                updatedAt: user.updatedAt,
                             };
                             return res.status(200).send({
                                 success: true,
@@ -123,24 +126,12 @@ authRoute.post('/register', async (req, res) => {
                         }).then((user: USERDATA) => {
                             const accessToken = generateAccessToken(user.id);
                             const refreshToken = generateRefreshToken(user.id);
-                            const newUser = {
-                                id: user.id,
-                                fName: user.fName,
-                                lName: user.lName,
-                                username: user.username,
-                                email: user.email,
-                                birthYear: user.birthYear,
-                                gender: user.birthYear,
-                                image: user.image,
-                                feeling: user.feeling,
-                                status: user.status,
-                            };
                             return res.status(200).send({
                                 success: true,
                                 data: {
                                     accessToken: accessToken,
                                     refreshToken: refreshToken,
-                                    user: newUser,
+                                    user: user,
                                 },
                                 message: "REGISTRATION_SUCCESS",
                             })
