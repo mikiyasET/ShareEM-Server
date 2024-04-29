@@ -8,7 +8,7 @@ import {
     getUserByEmailP,
     updateUser
 } from "../controller/user.controller";
-import {forgotPassword, FORGOTPASSWORDSTATUS, STATUS, user} from "@prisma/client";
+import {emailConfirmation, forgotPassword, SOLVESTATUS, STATUS, user} from "@prisma/client";
 import {
     authenticatePasswordToken,
     comparePassword,
@@ -22,10 +22,11 @@ import {USERDATA} from "../types/model.types";
 import {generate6DigitCode} from "../helper/helper";
 import {sendCode} from "../utils/nodemailer";
 import {createFPass, getFPassByEmail, updateFPass} from "../controller/forgotPassword.controller";
+import {createEmailConf, getEmailConfByEmail, updateEmailConf} from "../controller/emailConfirmation.controller";
 
 const authRoute = express.Router();
 authRoute.use(multer().none())
-authRoute.post('/login', (req, res) => {
+authRoute.post('/signIn', (req, res) => {
     const {email, password} = req.body;
     if (!email || !password) {
         return res.status(400).send({
@@ -47,12 +48,11 @@ authRoute.post('/login', (req, res) => {
                                 lName: user.lName,
                                 username: user.username,
                                 email: user.email,
-                                birthYear: user.birthYear,
+                                birthDate: user.birthDate,
                                 gender: user.gender,
                                 image: user.image,
                                 feeling: user.feeling,
                                 status: user.status,
-                                isEmailConfirmed: user.isEmailConfirmed,
                                 createdAt: user.createdAt,
                                 updatedAt: user.updatedAt,
                             };
@@ -102,9 +102,9 @@ authRoute.post('/login', (req, res) => {
         }
     }
 });
-authRoute.post('/register', async (req, res) => {
-    const {password, email, birthYear} = req.body;
-    if (!password || !email || !birthYear) {
+authRoute.post('/signUp', async (req, res) => {
+    const {password, email, birthDate, code, anonymous} = req.body;
+    if (!password || !email || !birthDate || !code || anonymous == undefined) {
         return res.status(400).send({
             success: false,
             data: null,
@@ -114,34 +114,69 @@ authRoute.post('/register', async (req, res) => {
         if (checkEmail(email)) {
             if (!(await checkUserEmail(email))) {
                 if (password.length >= 8 && password.length <= 256) {
-                    if (checkBirthYear(birthYear)) {
-                        const uid = ventIds();
-                        const pass = await hashPassword(password);
-                        return createUser({
-                            fName: uid,
-                            username: uid,
-                            email: email,
-                            password: pass,
-                            birthYear: parseInt(birthYear),
-                        }).then((user: USERDATA) => {
-                            const accessToken = generateAccessToken(user.id);
-                            const refreshToken = generateRefreshToken(user.id);
-                            return res.status(200).send({
-                                success: true,
-                                data: {
-                                    accessToken: accessToken,
-                                    refreshToken: refreshToken,
-                                    user: user,
-                                },
-                                message: "REGISTRATION_SUCCESS",
-                            })
+                    if (checkBirthYear(birthDate)) {
+                        return getEmailConfByEmail(email).then(async (emailConf: emailConfirmation | null) => {
+                            if (emailConf) {
+                                if (await comparePassword(code, emailConf.token)) {
+                                    updateEmailConf(emailConf.id, {
+                                        status: SOLVESTATUS.solved
+                                    }).then(async (fPass) => {
+                                        const uid = ventIds();
+                                        const pass = await hashPassword(password);
+                                        return createUser({
+                                            fName: uid,
+                                            username: uid,
+                                            email: email,
+                                            password: pass,
+                                            birthDate: birthDate,
+                                            status: anonymous ? STATUS.active : STATUS.incomplete
+                                        }).then((user: USERDATA) => {
+                                            const accessToken = generateAccessToken(user.id);
+                                            const refreshToken = generateRefreshToken(user.id);
+                                            return res.status(200).send({
+                                                success: true,
+                                                data: {
+                                                    accessToken: accessToken,
+                                                    refreshToken: refreshToken,
+                                                    user: user,
+                                                },
+                                                message: "REGISTRATION_SUCCESS",
+                                            })
+                                        }).catch((err) => {
+                                            return res.status(400).send({
+                                                success: false,
+                                                data: null,
+                                                message: "REGISTRATION_FAILED",
+                                            });
+                                        })
+                                    }).catch((err) => {
+                                        return res.status(400).send({
+                                            success: false,
+                                            data: null,
+                                            message: "EMAIL_CONFIRM_FAILED",
+                                        });
+                                    });
+                                } else {
+                                    return res.status(400).send({
+                                        success: false,
+                                        data: null,
+                                        message: "EMAIL_CONFIRM_FAILED",
+                                    });
+                                }
+                            } else {
+                                return res.status(400).send({
+                                    success: false,
+                                    data: null,
+                                    message: "EMAIL_CONFIRM_FAILED",
+                                });
+                            }
                         }).catch((err) => {
                             return res.status(400).send({
                                 success: false,
                                 data: null,
-                                message: "REGISTRATION_FAILED",
+                                message: "EMAIL_CONFIRM_FAILED",
                             });
-                        })
+                        });
                     } else {
                         return res.status(400).send({
                             success: false,
@@ -191,76 +226,6 @@ authRoute.post('/refresh', async (req, res) => {
         });
     }
 });
-authRoute.post('/forgot', async (req, res) => {
-    const email = req.body.email;
-    if (!email) {
-        return res.status(400).send({
-            success: false,
-            data: null,
-            message: "REQUIRED_FIELDS_MISSING",
-        });
-    } else {
-        if (checkEmail(email)) {
-            getUserByEmail(email).then(async (user: USERDATA | null) => {
-                if (user) {
-                    if (user.status === STATUS.active && user.isEmailConfirmed) {
-                        const code = generate6DigitCode();
-                        const hashCode = await hashPassword(code.toString());
-                        createFPass({
-                            email: email,
-                            token: hashCode
-                        }).then((fPass) => {
-                            sendCode(email, code).then((info) => {
-                                console.log(info)
-                                return res.status(200).send({
-                                    success: true,
-                                    data: null,
-                                    message: "FORGOT_SUCCESS",
-                                });
-                            }).catch((err) => {
-                                return res.status(400).send({
-                                    success: false,
-                                    data: null,
-                                    message: "FORGOT_EMAILING_FAILED",
-                                });
-                            })
-                        }).catch((err) => {
-                            return res.status(400).send({
-                                success: false,
-                                data: null,
-                                message: "FORGOT_FAILED",
-                            });
-                        })
-                    } else {
-                        return res.status(400).send({
-                            success: false,
-                            data: null,
-                            message: "ACCOUNT_NOT_READY_FOR_FORGOT",
-                        });
-                    }
-                } else {
-                    return res.status(400).send({
-                        success: false,
-                        data: null,
-                        message: "INVALID_EMAIL",
-                    });
-                }
-            }).catch((err) => {
-                return res.status(400).send({
-                    success: false,
-                    data: null,
-                    message: "FORGOT_FAILED",
-                });
-            });
-        } else {
-            return res.status(400).send({
-                success: false,
-                data: null,
-                message: "INVALID_EMAIL",
-            });
-        }
-    }
-});
 authRoute.post('/forgot/verify', async (req, res) => {
     const {email, code} = req.body;
     if (!email || !code) {
@@ -275,7 +240,7 @@ authRoute.post('/forgot/verify', async (req, res) => {
                 if (fPass) {
                     if (await comparePassword(code, fPass.token)) {
                         updateFPass(fPass.id, {
-                            status: FORGOTPASSWORDSTATUS.solved
+                            status: SOLVESTATUS.solved
                         }).then((fPass) => {
                             const token = generateAccessToken(fPass.id)
                             return res.status(200).send({
@@ -365,4 +330,144 @@ authRoute.post('/forgot/reset', authenticatePasswordToken, async (req: any, res)
         }
     }
 })
+authRoute.post('/forgot', async (req, res) => {
+    const email = req.body.email;
+    if (!email) {
+        return res.status(400).send({
+            success: false,
+            data: null,
+            message: "REQUIRED_FIELDS_MISSING",
+        });
+    } else {
+        if (checkEmail(email)) {
+            getUserByEmail(email).then(async (user: USERDATA | null) => {
+                if (user) {
+                    if (user.status === STATUS.active) {
+                        const code = generate6DigitCode();
+                        const hashCode = await hashPassword(code.toString());
+                        createFPass({
+                            email: email,
+                            token: hashCode
+                        }).then((fPass) => {
+                            sendCode(email, code).then((info) => {
+                                console.log(`Code Sent: ${code}`)
+                                return res.status(200).send({
+                                    success: true,
+                                    data: null,
+                                    message: "FORGOT_SUCCESS",
+                                });
+                            }).catch((err) => {
+                                return res.status(400).send({
+                                    success: false,
+                                    data: null,
+                                    message: "FORGOT_EMAILING_FAILED",
+                                });
+                            })
+                        }).catch((err) => {
+                            return res.status(400).send({
+                                success: false,
+                                data: null,
+                                message: "FORGOT_FAILED",
+                            });
+                        })
+                    } else {
+                        return res.status(400).send({
+                            success: false,
+                            data: null,
+                            message: "ACCOUNT_NOT_READY_FOR_FORGOT",
+                        });
+                    }
+                } else {
+                    return res.status(400).send({
+                        success: false,
+                        data: null,
+                        message: "INVALID_EMAIL",
+                    });
+                }
+            }).catch((err) => {
+                return res.status(400).send({
+                    success: false,
+                    data: null,
+                    message: "FORGOT_FAILED",
+                });
+            });
+        } else {
+            return res.status(400).send({
+                success: false,
+                data: null,
+                message: "INVALID_EMAIL",
+            });
+        }
+    }
+});
+authRoute.post('/confirmEmail', async (req, res) => {
+    const {password, email, birthDate, code} = req.body;
+    if (!password || !email || !birthDate) {
+        return res.status(400).send({
+            success: false,
+            data: null,
+            message: "REQUIRED_FIELDS_MISSING",
+        });
+    } else {
+        if (checkEmail(email)) {
+            if (!(await checkUserEmail(email))) {
+                if (password.length >= 8 && password.length <= 256) {
+                    if (checkBirthYear(birthDate)) {
+                        const code = generate6DigitCode();
+                        const hashCode = await hashPassword(code.toString());
+                        createEmailConf({
+                            email: email,
+                            token: hashCode
+                        }).then((_) => {
+                            sendCode(email, code).then((info) => {
+                                console.log(info)
+                                return res.status(200).send({
+                                    success: true,
+                                    data: null,
+                                    message: "EMAIL_VERIFY_SUCCESS",
+                                });
+                            }).catch((err) => {
+                                return res.status(400).send({
+                                    success: false,
+                                    data: null,
+                                    message: "EMAIL_VERIFY_FAILED",
+                                });
+                            })
+                        }).catch((err) => {
+                            return res.status(400).send({
+                                success: false,
+                                data: null,
+                                message: "EMAIL_VERIFY_FAILED",
+                            });
+                        })
+                    } else {
+                        return res.status(400).send({
+                            success: false,
+                            data: null,
+                            message: "INVALID_BIRTH_YEAR",
+                        });
+                    }
+                } else {
+                    return res.status(400).send({
+                        success: false,
+                        data: null,
+                        message: "PASSWORD_LENGTH_ERROR",
+                    });
+                }
+            } else {
+                return res.status(400).send({
+                    success: false,
+                    data: null,
+                    message: "EMAIL_ALREADY_EXISTS",
+                });
+            }
+        } else {
+            return res.status(400).send({
+                success: false,
+                data: null,
+                message: "INVALID_EMAIL",
+            });
+        }
+    }
+});
 export default authRoute;

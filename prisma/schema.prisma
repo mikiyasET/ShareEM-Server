@@ -14,32 +14,40 @@ datasource db {
 }
 
 model user {
-  id               String    @id @default(uuid())
-  fName            String
-  lName            String?
-  username         String    @unique
-  email            String    @unique
-  password         String    @db.Text
-  birthYear        Int
-  gender           GENDER    @default(none)
-  image            String?
-  feeling          FEELING   @default(none)
-  status           STATUS    @default(inactive)
-  isEmailConfirmed Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  vent             vent[]
-  comment          comment[]
-  react            react[]
+  id        String    @id @default(uuid())
+  fName     String
+  lName     String?
+  username  String    @unique
+  email     String    @unique
+  password  String    @db.Text
+  birthDate String
+  gender    GENDER    @default(none)
+  image     String?
+  feeling   FEELING   @default(none)
+  status    STATUS    @default(inactive)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  vent      vent[]
+  comment   comment[]
+  react     react[]
+}
+
+model emailConfirmation {
+  id        String      @id @default(uuid())
+  email     String      @unique
+  token     String      @db.Text
+  status    SOLVESTATUS @default(unsolved)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 }
 
 model forgotPassword {
-  id        String               @id @default(uuid())
-  email     String               @unique
-  token     String               @db.Text
-  status    FORGOTPASSWORDSTATUS @default(unsolved)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  id        String      @id @default(uuid())
+  email     String      @unique
+  token     String      @db.Text
+  status    SOLVESTATUS @default(unsolved)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 }
 
 model vent {
@@ -95,9 +103,10 @@ enum STATUS {
   deactivated
   active
   inactive
+  incomplete
 }
 
-enum FORGOTPASSWORDSTATUS {
+enum SOLVESTATUS {
   solved
   unsolved
 }

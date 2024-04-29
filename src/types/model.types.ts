@@ -6,12 +6,11 @@ export type USERDATA = {
     lName: string | null;
     username: string;
     email: string;
-    birthYear: number;
+    birthDate: string;
     gender: GENDER;
     image: string | null;
     feeling: FEELING;
     status: STATUS;
-    isEmailConfirmed: boolean;
     createdAt: Date;
     updatedAt: Date;
 }

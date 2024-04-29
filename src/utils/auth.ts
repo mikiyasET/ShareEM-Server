@@ -11,9 +11,9 @@ export const authenticateToken = (req: any, res: any, next: any) => {
         if (token == null) return res.sendStatus(403)
 
         jwt.verify(token, process.env.TOKEN_SECRET as string, async (err: any, user: any) => {
-            if (err) return res.sendStatus(403)
+            if (err) return res.sendStatus(401)
             req.user = await getUser(user.id);
-            if (!req.user) return res.sendStatus(403);
+            if (!req.user) return res.sendStatus(401);
             next()
         })
     } catch (e) {
@@ -28,11 +28,11 @@ export const authenticatePasswordToken = (req: any, res: any, next: any) => {
         if (token == null) return res.sendStatus(403)
 
         jwt.verify(token, process.env.TOKEN_SECRET as string, async (err: any, fPass: any) => {
-            if (err) return res.sendStatus(403);
+            if (err) return res.sendStatus(401);
             const fPassWord = await getFPass(fPass.id);
-            if (fPassWord == null) return res.sendStatus(403);
+            if (fPassWord == null) return res.sendStatus(401);
             req.user = await getUserByEmail(fPassWord.email);
-            if (!req.user) return res.sendStatus(403);
+            if (!req.user) return res.sendStatus(401);
             next()
         })
     } catch (e) {

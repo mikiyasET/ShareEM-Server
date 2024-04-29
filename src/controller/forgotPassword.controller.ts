@@ -1,5 +1,5 @@
 import prisma from "../utils/client";
-import {Prisma, forgotPassword,FORGOTPASSWORDSTATUS} from "@prisma/client";
+import {Prisma, forgotPassword, SOLVESTATUS} from "@prisma/client";
 
 
 export const createFPass = async (data: Prisma.forgotPasswordUncheckedCreateInput): Promise<forgotPassword> => {
@@ -9,11 +9,11 @@ export const createFPass = async (data: Prisma.forgotPasswordUncheckedCreateInpu
         },
         update: {
             ...data,
-            status: FORGOTPASSWORDSTATUS.unsolved
+            status: SOLVESTATUS.unsolved
         },
         create: {
             ...data,
-            status: FORGOTPASSWORDSTATUS.unsolved
+            status: SOLVESTATUS.unsolved
         }
     });
 }
