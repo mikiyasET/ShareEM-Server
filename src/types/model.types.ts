@@ -9,6 +9,7 @@ export type USERDATA = {
     birthDate: string;
     gender: GENDER;
     image: string | null;
+    identity: boolean;
     feeling: FEELING;
     status: STATUS;
     createdAt: Date;

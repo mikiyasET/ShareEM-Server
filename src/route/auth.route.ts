@@ -23,6 +23,7 @@ import {generate6DigitCode} from "../helper/helper";
 import {sendCode} from "../utils/nodemailer";
 import {createFPass, getFPassByEmail, updateFPass} from "../controller/forgotPassword.controller";
 import {createEmailConf, getEmailConfByEmail, updateEmailConf} from "../controller/emailConfirmation.controller";
+import {customAlphabet} from "nanoid";
 
 const authRoute = express.Router();
 authRoute.use(multer().none())
@@ -53,6 +54,7 @@ authRoute.post('/signIn', (req, res) => {
                                 image: user.image,
                                 feeling: user.feeling,
                                 status: user.status,
+                                identity: user.identity,
                                 createdAt: user.createdAt,
                                 updatedAt: user.updatedAt,
                             };
@@ -123,13 +125,17 @@ authRoute.post('/signUp', async (req, res) => {
                                     }).then(async (fPass) => {
                                         const uid = ventIds();
                                         const pass = await hashPassword(password);
+                                        const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-', 20);
+                                        const hiddenName = nanoid();
                                         return createUser({
                                             fName: uid,
                                             username: uid,
                                             email: email,
                                             password: pass,
                                             birthDate: birthDate,
-                                            status: anonymous ? STATUS.active : STATUS.incomplete
+                                            hiddenName: hiddenName,
+                                            identity: !anonymous,
+                                            status: anonymous ? STATUS.active : STATUS.incomplete,
                                         }).then((user: USERDATA) => {
                                             const accessToken = generateAccessToken(user.id);
                                             const refreshToken = generateRefreshToken(user.id);
@@ -207,11 +213,10 @@ authRoute.post('/signUp', async (req, res) => {
         }
     }
 });
-authRoute.post('/refresh', async (req, res) => {
-    const refreshToken = req.body.refreshToken;
+authRoute.post('/refresh', async (req: any, res) => {
+    const refreshToken = req.body['Refresh-Token'];
     if (refreshToken == null) return res.sendStatus(401);
     const token = await refreshTheToken(refreshToken);
-    console.log(token)
     if (token) {
         return res.status(200).send({
             success: true,
@@ -350,7 +355,6 @@ authRoute.post('/forgot', async (req, res) => {
                             token: hashCode
                         }).then((fPass) => {
                             sendCode(email, code).then((info) => {
-                                console.log(`Code Sent: ${code}`)
                                 return res.status(200).send({
                                     success: true,
                                     data: null,
@@ -381,7 +385,7 @@ authRoute.post('/forgot', async (req, res) => {
                     return res.status(400).send({
                         success: false,
                         data: null,
-                        message: "INVALID_EMAIL",
+                        message: "USER_NOT_FOUND",
                     });
                 }
             }).catch((err) => {
@@ -420,7 +424,6 @@ authRoute.post('/confirmEmail', async (req, res) => {
                             token: hashCode
                         }).then((_) => {
                             sendCode(email, code).then((info) => {
-                                console.log(info)
                                 return res.status(200).send({
                                     success: true,
                                     data: null,

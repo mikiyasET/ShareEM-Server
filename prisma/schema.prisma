@@ -14,22 +14,105 @@ datasource db {
 }
 
 model user {
+  id          String        @id @default(uuid())
+  fName       String
+  lName       String?
+  username    String        @unique
+  email       String        @unique
+  password    String        @db.Text
+  birthDate   String
+  hiddenName  String
+  oldUsername String?
+  oldEmail    String?
+  gender      GENDER        @default(none)
+  image       String?
+  feeling     FEELING       @default(none)
+  status      STATUS        @default(inactive)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  identity    Boolean       @default(false)
+  vent        vent[]
+  comment     comment[]
+  saved       saved[]
+  like        like[]
+  chatRoom1   chatRoom[]    @relation("user1")
+  chatRoom2   chatRoom[]    @relation("user2")
+  chatMessage chatMessage[]
+  tracker     tracker?
+}
+
+model vent {
   id        String    @id @default(uuid())
-  fName     String
-  lName     String?
-  username  String    @unique
-  email     String    @unique
-  password  String    @db.Text
-  birthDate String
-  gender    GENDER    @default(none)
-  image     String?
+  userId    String
+  user      user      @relation(fields: [userId], references: [id])
+  title     String    @db.Text
+  content   String    @db.Text
+  likes     Int       @default(0)
+  dislikes  Int       @default(0)
+  comments  Int       @default(0)
   feeling   FEELING   @default(none)
-  status    STATUS    @default(inactive)
+  identity  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  vent      vent[]
   comment   comment[]
-  react     react[]
+  saved     saved[]
+  like      like[]
+  tags      ventTag[]
+}
+
+model ventTag {
+  id        Int      @id @default(autoincrement())
+  vent_id   String
+  vent      vent     @relation(fields: [vent_id], references: [id])
+  tag_id    Int
+  tag       tag      @relation(fields: [tag_id], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  count     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  ventTag   ventTag[]
+}
+
+model comment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  ventId    String
+  vent      vent     @relation(fields: [ventId], references: [id])
+  likes     Int      @default(0)
+  comments  Int      @default(0)
+  content   String   @db.Text
+  identity  Boolean  @default(false)
+  replyTo   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model like {
+  id        String   @id @default(uuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  ventId    String
+  vent      vent     @relation(fields: [ventId], references: [id])
+  type      LIKETYPE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model saved {
+  id        String   @id @default(uuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  ventId    String
+  vent      vent     @relation(fields: [ventId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model emailConfirmation {
@@ -50,39 +133,47 @@ model forgotPassword {
   updatedAt DateTime    @updatedAt
 }
 
-model vent {
-  id        String    @id @default(uuid())
-  userId    String
-  user      user      @relation(fields: [userId], references: [id])
-  content   String    @db.Text
-  feeling   FEELING   @default(none)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  comment   comment[]
-  react     react[]
+model chatRoom {
+  id          String        @id @default(uuid())
+  user1Id     String
+  user1       user          @relation("user1", fields: [user1Id], references: [id])
+  user2Id     String
+  user2       user          @relation("user2", fields: [user2Id], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  chatMessage chatMessage[]
 }
 
-model comment {
-  id        String   @id @default(uuid())
-  userId    String
-  user      user     @relation(fields: [userId], references: [id])
-  ventId    String
-  vent      vent     @relation(fields: [ventId], references: [id])
-  content   String   @db.Text
-  replyTo   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model chatMessage {
+  id         String     @id @default(uuid())
+  chatRoomId String
+  chatRoom   chatRoom   @relation(fields: [chatRoomId], references: [id])
+  userId     String
+  user       user       @relation(fields: [userId], references: [id])
+  message    String     @db.Text
+  type       CHATTYPE   @default(text)
+  status     CHATSTATUS @default(delivered)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 }
 
-model react {
-  id        String   @id @default(uuid())
-  userId    String
-  user      user     @relation(fields: [userId], references: [id])
-  ventId    String
-  vent      vent     @relation(fields: [ventId], references: [id])
-  type      LIKETYPE
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model tracker {
+  id            String            @id @default(uuid())
+  user_id       String            @unique
+  user          user              @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  last_activity trackActivityType @default(connect)
+  isOnline      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+enum trackActivityType {
+  connect
+  fetch
+  update
+  create
+  delete
+  disconnect
 }
 
 enum GENDER {
@@ -101,6 +192,7 @@ enum FEELING {
 enum STATUS {
   suspended
   deactivated
+  deleted
   active
   inactive
   incomplete
@@ -112,47 +204,19 @@ enum SOLVESTATUS {
 }
 
 enum LIKETYPE {
-  smile
-  smirk
-  heart_eyes
-  kissing_heart
-  flushed
-  unamused
-  pensive
-  cry
-  sob
-  joy
-  scream
-  rage
-  smiling_imp
-  neutral_face
-  heart
-  broken_heart
-  cupid
-  star
-  boom
-  sweat_drops
-  thumbsup
-  punch
-  fist
-  v
-  pray
-  raised_hands
-  clap
-  metal
-  muscle
-  fu
-  see_no_evil
-  hear_no_evil
-  speak_no_evil
-  kiss
-  skull
-  eyes
-  rose
-  pill
-  hundred
-  trophy
-  bomb
-  shit
-  fire
+  upvote
+  downvote
+}
+
+enum CHATTYPE {
+  text
+  image
+  video
+  audio
+}
+
+enum CHATSTATUS {
+  delivered
+  seen
+  deleted
 }
