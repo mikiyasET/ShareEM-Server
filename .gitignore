@@ -128,3 +128,4 @@ dist
 .idea
 public/up_image/*.*
 pnpm-lock.yaml
+build/

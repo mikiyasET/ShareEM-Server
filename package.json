@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "node build/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "test": "nodemon src/test.ts",
@@ -40,5 +40,9 @@
     "@types/node": "^20.11.28",
     "@types/nodemailer": "^6.4.14",
     "ts-node": "^10.9.2"
+  },
+  "optionalDependencies": {
+    "@img/sharp-win32-x64": "^0.33.2",
+    "@img/sharp-linux-arm": "^0.33.2"
   }
 }
