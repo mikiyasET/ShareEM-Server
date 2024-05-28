@@ -20,6 +20,7 @@ const chatRoomInclude = {
 };
 export const createChatRoom = async (data: Prisma.chatRoomUncheckedCreateInput): Promise<chatRoom | null> => {
     try {
+        console.log(data)
         if (data.user1Id !== data.user2Id) {
             return prisma.$transaction(async (tx) => {
                 const checkUser = await prisma.chatRoom.findFirst({
@@ -49,6 +50,7 @@ export const createChatRoom = async (data: Prisma.chatRoomUncheckedCreateInput):
             throw Error("You can have chat with yourself")
         }
     } catch (e) {
+        console.log(e)
         return null;
     }
 }
@@ -98,7 +100,7 @@ export const getChatRoom = async (id: string, userId: string): Promise<chatRoom 
     }
     if (room.user2.tracker !== null) {
         const check1 = room.user2.tracker!.isOnline;
-        const check2 = (room.user2.tracker!.updatedAt.getTime()) < (new Date().getTime() - 300000);
+        const check2 = (room.user2.tracker!.updatedAt.getTime()) > (new Date().getTime() - 300000);
         if (check1 && check2) {
             room.user2.isOnline = true;
         } else {
@@ -189,7 +191,7 @@ export const getChatRoomByUser = async (id: string, page: number, limit: number)
         }
         if (room.user2.tracker !== null) {
             const check1 = room.user2.tracker!.isOnline;
-            const check2 = (room.user2.tracker!.updatedAt.getTime()) < (new Date().getTime() - 300000);
+            const check2 = (room.user2.tracker!.updatedAt.getTime()) > (new Date().getTime() - 300000);
             if (check1 && check2) {
                 room.user2.isOnline = true;
             } else {

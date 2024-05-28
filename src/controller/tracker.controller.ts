@@ -1,7 +1,7 @@
-import {user, trackActivityType, tracker} from "@prisma/client";
+import {user, ACTIVITYTYPE, tracker} from "@prisma/client";
 import prisma from "../utils/client";
 
-export const trackMe = async (userId: string, activity: trackActivityType): Promise<tracker | null> => {
+export const trackMe = async (userId: string, activity: ACTIVITYTYPE): Promise<tracker | null> => {
     try {
         return prisma.tracker.upsert({
             where: {
@@ -9,12 +9,12 @@ export const trackMe = async (userId: string, activity: trackActivityType): Prom
             },
             update: {
                 last_activity: activity,
-                isOnline: activity !== 'disconnect'
+                isOnline: activity !== ACTIVITYTYPE.disconnect
             },
             create: {
                 user_id: userId,
                 last_activity: activity,
-                isOnline: activity !== 'disconnect'
+                isOnline: activity !== ACTIVITYTYPE.disconnect
             }
         })
     } catch (e) {

@@ -158,20 +158,21 @@ model chatMessage {
 }
 
 model tracker {
-  id            String            @id @default(uuid())
-  user_id       String            @unique
-  user          user              @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  last_activity trackActivityType @default(connect)
-  isOnline      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id            String       @id @default(uuid())
+  user_id       String       @unique
+  user          user         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  last_activity ACTIVITYTYPE @default(connect)
+  isOnline      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
-enum trackActivityType {
+enum ACTIVITYTYPE {
   connect
   fetch
-  update
   create
+  upsert
+  update
   delete
   disconnect
 }

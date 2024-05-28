@@ -17,7 +17,8 @@ import {
 } from "./controller/chatRoom.controller";
 import {chatMessage, user} from "@prisma/client";
 import {USERDATA} from "./types/model.types";
-import {createChatMessage, getChatMessages} from "./controller/chatMessage.controller";
+import {createChatMessage, getChatMessages, readChatMessage} from "./controller/chatMessage.controller";
+import {trackMe} from "./controller/tracker.controller";
 
 const app = express();
 
@@ -39,7 +40,7 @@ io.of('/').use(async function (socket, next) {
     // console.log("WEbsocket")
     // console.log(socket.handshake.auth)
     if (socket.handshake.auth && socket.handshake.auth.access_token && socket.handshake.auth.refresh_token) {
-        const user = await authenticateSocketToken(socket.handshake.auth.access_token);
+        const user: any = await authenticateSocketToken(socket.handshake.auth.access_token);
         if (user !== false) {
             socket.data = user;
             next();
@@ -56,9 +57,8 @@ io.of('/').use(async function (socket, next) {
         next(new Error('AUTHERR: NO_AUTH'));
     }
 }).on('connection', async (socket) => {
-
-    console.log('a user connected');
     const user: USERDATA = socket.data;
+    console.log(`${user.fName} ${user.lName} connected`);
     if (users.findIndex((u) => u.userId == user.id) == -1) {
         users.push({userId: user.id, socketId: socket.id});
     }
@@ -68,7 +68,17 @@ io.of('/').use(async function (socket, next) {
         data: getChatRooms,
         message: "IO_CHAT_DATA"
     });
+    await trackMe(user.id, 'connect');
+    const profile = await getUserProfile(user.id);
+    socket.broadcast.emit('userStatus', {
+        success: true,
+        data: profile,
+        message: "IO_USER_PROFILE"
+    })
+    console.log(`Sent user status to ${user.fName} ${profile.isOnline}`)
     socket.on('getChatRooms', async (data: { page: number, limit: number }) => {
+        console.log(`Sent chat rooms to ${user.fName}`)
+        await trackMe(user.id, 'fetch');
         const getChatRooms = await getChatRoomByUser(user.id, data.page ?? 0, data.limit ?? 10);
         io.to(socket.id).emit('chatRooms', {
             success: true,
@@ -78,6 +88,7 @@ io.of('/').use(async function (socket, next) {
     })
     socket.on('joinRoom', async (id: string) => {
         try {
+            await trackMe(user.id, 'upsert');
             const room = await getChatRoomByUsers(user.id, id);
             if (room) {
                 io.to(socket.id).emit('chatRoom', {
@@ -97,6 +108,8 @@ io.of('/').use(async function (socket, next) {
                         message: "IO_NEW_CHAT_ROOM"
                     });
                 } else {
+                    console.log("Failed to create chat room")
+                    console.log(room)
                     io.to(socket.id).emit('chatRoom', {
                         success: false,
                         data: null,
@@ -119,6 +132,7 @@ io.of('/').use(async function (socket, next) {
         limit?: number,
     }, callback) => {
         try {
+            await trackMe(user.id, 'fetch');
             const msg: {
                 messages: chatMessage[],
                 updateRoom: boolean
@@ -144,6 +158,11 @@ io.of('/').use(async function (socket, next) {
                         const r_index = users.findIndex((u) => u.userId == r_id);
                         if (r_index != -1) {
                             const updatedChatRoom = await getChatRoom(id, r_id);
+                            io.to(users[r_index].socketId).emit('updateChat', {
+                                success: true,
+                                data: msg.messages,
+                                message: "IO_UPDATED_CHAT"
+                            });
                             io.to(users[r_index].socketId).emit('updateChatRoom', {
                                 success: true,
                                 data: updatedChatRoom,
@@ -161,11 +180,13 @@ io.of('/').use(async function (socket, next) {
                 message: "IO_CHAT_MESSAGES_FAILED"
             });
         }
+
     })
     socket.on('sendMessage', async (data: { key: string, id: string, message: string }) => {
+        await trackMe(user.id, 'create');
         const chat = await createChatMessage({
             chatRoomId: data.id,
-            message: data.message,
+            message: data.message.trim(),
             userId: user.id
         })
         if (chat) {
@@ -179,17 +200,17 @@ io.of('/').use(async function (socket, next) {
             });
             const getReceiverId = await getChatRoomUserNotID(data.id, user.id);
             if (getReceiverId != null) {
-                socket.broadcast.emit(getReceiverId, {
-                    success: true,
-                    data: {
-                        key: data.key,
-                        chat: chat,
-                    },
-                    message: "IO_CHAT_NEW_MESSAGE"
-                });
                 const r_index = users.findIndex((u) => u.userId == getReceiverId);
                 if (r_index != -1) {
                     const updatedChatRoom = await getChatRoom(data.id, getReceiverId);
+                    io.to(users[r_index].socketId).emit(getReceiverId, {
+                        success: true,
+                        data: {
+                            key: data.key,
+                            chat: chat,
+                        },
+                        message: "IO_CHAT_NEW_MESSAGE"
+                    });
                     io.to(users[r_index].socketId).emit('updateChatRoom', {
                         success: true,
                         data: updatedChatRoom,
@@ -205,12 +226,42 @@ io.of('/').use(async function (socket, next) {
             });
         }
     });
+    socket.on('readChat', async (chatId: string) => {
+        await trackMe(user.id, 'update');
+        const chat = await readChatMessage(chatId);
+        if (chat) {
+            const r_id = await getChatRoomUserNotID(chat.chatRoomId, user.id);
+            if (r_id) {
+                const r_index = users.findIndex((u) => u.userId == r_id);
+                if (r_index != -1) {
+                    const updatedChatRoom = await getChatRoom(chat.chatRoomId, r_id);
+                    io.to(users[r_index].socketId).emit('updateChatRoom', {
+                        success: true,
+                        data: updatedChatRoom,
+                        message: "IO_UPDATED_CHAT_ROOM"
+                    });
+                    const updatedChatRoom2 = await getChatRoom(chat.chatRoomId, user.id);
+                    io.to(socket.id).emit('updateChatRoom', {
+                        success: true,
+                        data: updatedChatRoom2,
+                        message: "IO_UPDATED_CHAT_ROOM"
+                    });
+                    io.to(users[r_index].socketId).emit('updateChat', {
+                        success: true,
+                        data: [chat],
+                        message: "IO_UPDATED_CHAT"
+                    });
+                }
+            }
+        }
+    });
     socket.on('getProfile', async (id: string) => {
-        const user = await getUserProfile(id);
-        if (user) {
+        await trackMe(user.id, 'fetch');
+        const us = await getUserProfile(id);
+        if (us) {
             io.to(socket.id).emit('profile', {
                 success: true,
-                data: user,
+                data: us,
                 message: "IO_PROFILE_DATA"
             });
         } else {
@@ -221,7 +272,14 @@ io.of('/').use(async function (socket, next) {
             });
         }
     })
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
+        await trackMe(user.id, 'disconnect');
+        const profile = await getUserProfile(user.id);
+        socket.broadcast.emit('userStatus', {
+            success: true,
+            data: profile,
+            message: "IO_USER_PROFILE"
+        })
         const index = users.findIndex((u) => u.userId == user.id);
         if (index != -1) {
             users.splice(index, 1);

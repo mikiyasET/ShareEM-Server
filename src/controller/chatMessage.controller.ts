@@ -81,3 +81,19 @@ export const getChatMessages = async (roomId: string,userId: string, page: numbe
         updateRoom: updateRoom
     };
 }
+export const readChatMessage = async (chatId: string) => {
+    return prisma.chatMessage.update({
+        where: {
+            id: chatId
+        },
+        data: {
+            status: CHATSTATUS.seen
+        },
+        include: {
+            user: {
+                select: userPublicSelectData
+            }
+        },
+
+    })
+}

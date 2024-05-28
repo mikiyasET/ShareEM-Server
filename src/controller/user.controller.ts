@@ -134,14 +134,15 @@ export const getUserProfile = async (userId: string) => {
     })
     if (user && user.tracker != null) {
         const check1 = user.tracker!.isOnline;
-        const check2 = (user.tracker!.updatedAt.getTime()) < (new Date().getTime() - 300000);
+        const check2 = (user.tracker!.updatedAt.getTime()) > (new Date().getTime() - 300000);
         if (check1 && check2) {
             user.tracker.isOnline = true;
         } else {
             user.tracker.isOnline = false;
         }
+        user.isOnline = user.tracker.isOnline;
         delete user.tracker;
     }
-
+    console.log(user)
     return user;
 }
