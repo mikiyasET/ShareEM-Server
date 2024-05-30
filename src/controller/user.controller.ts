@@ -143,6 +143,5 @@ export const getUserProfile = async (userId: string) => {
         user.isOnline = user.tracker.isOnline;
         delete user.tracker;
     }
-    console.log(user)
     return user;
 }

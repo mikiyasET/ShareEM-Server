@@ -115,3 +115,27 @@ export const getUserVents = async (userId: string, page: number = 0, limit: numb
 
     return vents;
 }
+export const getUserPublicVents = async (userId: string, page: number = 0, limit: number = 10): Promise<vent[]> => {
+    const vents:any = await prisma.vent.findMany({
+        where: {
+            userId: userId,
+            identity: true,
+        },
+        orderBy: {
+            createdAt: 'asc'
+        },
+        include: ventIncludeData(userId),
+        take: limit,
+        skip: page * limit,
+    });
+    for (let vent of vents) {
+        vent.user.identity = vent.identity;
+        if (!vent.identity) {
+            delete vent.user.fName;
+            delete vent.user.lName;
+            delete vent.user.image;
+            delete vent.user.username;
+        }
+    }
+    return vents;
+}

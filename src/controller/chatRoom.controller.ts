@@ -1,6 +1,5 @@
-import {chatRoom, CHATSTATUS, Prisma, user} from "@prisma/client";
+import {chatRoom, CHATSTATUS, Prisma} from "@prisma/client";
 import prisma from "../utils/client";
-import {userPublicSelectData} from "./user.controller";
 
 export const chatSelectData = {
     id: true,
@@ -20,7 +19,6 @@ const chatRoomInclude = {
 };
 export const createChatRoom = async (data: Prisma.chatRoomUncheckedCreateInput): Promise<chatRoom | null> => {
     try {
-        console.log(data)
         if (data.user1Id !== data.user2Id) {
             return prisma.$transaction(async (tx) => {
                 const checkUser = await prisma.chatRoom.findFirst({
@@ -171,6 +169,9 @@ export const getChatRoomByUser = async (id: string, page: number, limit: number)
         },
         skip: page * limit,
         take: limit,
+        orderBy: {
+            updatedAt: 'desc'
+        }
     })
     let response: any[] = [];
     for (let room of rooms) {

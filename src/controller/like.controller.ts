@@ -190,7 +190,7 @@ export const getLikes = async (): Promise<like[]> => {
 }
 
 export const getLikedVents = async (userId: string, page: number, limit: number): Promise<like[]> => {
-    return prisma.like.findMany({
+    let vents = await prisma.like.findMany({
         where: {
             userId: userId,
         },
@@ -201,6 +201,14 @@ export const getLikedVents = async (userId: string, page: number, limit: number)
         skip: page * limit,
         take: limit,
     });
+    vents = vents.map((v) => {
+        v.user.identity = v.vent.identity;
+        v.vent.user.identity = v.vent.identity;
+        return v;
+    })
+
+    return  vents
+
 }
 function datediff(first: any, second:any) {
     return Math.round((second - first) / (1000 * 60 * 60 * 24));

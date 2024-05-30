@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import {authenticateSocketToken, authenticateToken, refreshSocketToken} from "./utils/auth";
 import jwt from "jsonwebtoken";
-import {getUser, getUserProfile} from "./controller/user.controller";
+import {getUserProfile} from "./controller/user.controller";
 import {
     createChatRoom, getChatRoom,
     getChatRoomByUser,
@@ -19,12 +19,13 @@ import {chatMessage, user} from "@prisma/client";
 import {USERDATA} from "./types/model.types";
 import {createChatMessage, getChatMessages, readChatMessage} from "./controller/chatMessage.controller";
 import {trackMe} from "./controller/tracker.controller";
+import {getUserPublicVents, getUserVents} from "./controller/vent.controller";
 
 const app = express();
 
 app.use('/img', express.static('public'));
 app.use(express.json());
-// app.use(morgan('dev'));
+app.use(morgan('dev'));
 dotenv.config({override: true});
 app.use(cors());
 const server = createServer(app);
@@ -37,8 +38,6 @@ export const io = new Server(server, {
 app.use('/api/v1', appRoute);
 const users: { userId: string, socketId: string }[] = [];
 io.of('/').use(async function (socket, next) {
-    // console.log("WEbsocket")
-    // console.log(socket.handshake.auth)
     if (socket.handshake.auth && socket.handshake.auth.access_token && socket.handshake.auth.refresh_token) {
         const user: any = await authenticateSocketToken(socket.handshake.auth.access_token);
         if (user !== false) {
@@ -58,7 +57,6 @@ io.of('/').use(async function (socket, next) {
     }
 }).on('connection', async (socket) => {
     const user: USERDATA = socket.data;
-    console.log(`${user.fName} ${user.lName} connected`);
     if (users.findIndex((u) => u.userId == user.id) == -1) {
         users.push({userId: user.id, socketId: socket.id});
     }
@@ -75,9 +73,7 @@ io.of('/').use(async function (socket, next) {
         data: profile,
         message: "IO_USER_PROFILE"
     })
-    console.log(`Sent user status to ${user.fName} ${profile.isOnline}`)
     socket.on('getChatRooms', async (data: { page: number, limit: number }) => {
-        console.log(`Sent chat rooms to ${user.fName}`)
         await trackMe(user.id, 'fetch');
         const getChatRooms = await getChatRoomByUser(user.id, data.page ?? 0, data.limit ?? 10);
         io.to(socket.id).emit('chatRooms', {
@@ -108,8 +104,6 @@ io.of('/').use(async function (socket, next) {
                         message: "IO_NEW_CHAT_ROOM"
                     });
                 } else {
-                    console.log("Failed to create chat room")
-                    console.log(room)
                     io.to(socket.id).emit('chatRoom', {
                         success: false,
                         data: null,
@@ -126,11 +120,7 @@ io.of('/').use(async function (socket, next) {
             });
         }
     });
-    socket.on('getChatMessages', async ({id, page, limit}: {
-        id: string,
-        page?: number,
-        limit?: number,
-    }, callback) => {
+    socket.on('getChatMessages', async ({id, page, limit}: { id: string, page?: number, limit?: number}, callback) => {
         try {
             await trackMe(user.id, 'fetch');
             const msg: {
@@ -180,7 +170,6 @@ io.of('/').use(async function (socket, next) {
                 message: "IO_CHAT_MESSAGES_FAILED"
             });
         }
-
     })
     socket.on('sendMessage', async (data: { key: string, id: string, message: string }) => {
         await trackMe(user.id, 'create');
@@ -269,6 +258,23 @@ io.of('/').use(async function (socket, next) {
                 success: false,
                 data: null,
                 message: "IO_PROFILE_FAILED"
+            });
+        }
+    })
+    socket.on('getUserVents', async ({id, page} : {id: string, page?: number}) => {
+        await trackMe(user.id, 'fetch');
+        const vents = await getUserPublicVents(id, page ?? 0, 5);
+        if (vents) {
+            io.to(socket.id).emit('userVents', {
+                success: true,
+                data: vents,
+                message: "IO_USER_VENTS"
+            });
+        } else {
+            io.to(socket.id).emit('userVents', {
+                success: false,
+                data: null,
+                message: "IO_USER_VENTS_FAILED"
             });
         }
     })
